@@ -1,0 +1,67 @@
+# ---- Python bytecode / caches ----
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+ENV/
+env/
+.envrc
+
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# ---- Packaging / builds ----
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+
+# ---- Test / coverage ----
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.nox/
+.tox/
+
+# ---- Logs / local data ----
+*.log
+logs/
+
+# ---- Jupyter / notebooks ----
+.ipynb_checkpoints/
+
+# ---- OS junk ----
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---- IDEs / editors ----
+.idea/
+.vscode/
+*.code-workspace
+
+# Cursor (optional; keep if you don't want local agent state tracked)
+.cursor/
+
+# ---- TypeScript / Node (if present) ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
