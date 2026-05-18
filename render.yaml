@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: aman-secure-mcp-server
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python mcp_server.py
+    envVars:
+      - key: AUTHSEC_CLIENT_ID
+        sync: false
+    autoDeploy: true
