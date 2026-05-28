@@ -19,6 +19,8 @@ from authsec_sdk import (
     from_env,
     mount_mcp,
 )
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse as _JSONResponse
 
 load_dotenv()
 
@@ -134,6 +136,31 @@ def run_mcp_server_with_oauth(
         allow_headers=["*"],
     )
 
+    # MCP `initialize` is a protocol handshake — it carries no user data and
+    # must succeed *before* the client can start the OAuth flow.  Every other
+    # method (tools/list, tools/call, …) still requires a valid bearer token.
+    class _InitializePassthrough(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+            if request.method == "POST" and request.url.path == "/mcp":
+                body = await request.body()
+                try:
+                    msg = json.loads(body)
+                except Exception:
+                    msg = {}
+                if msg.get("method") == "initialize":
+                    return _JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": msg.get("id"),
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {"tools": {"listChanged": False}},
+                            "serverInfo": {"name": app_name, "version": "1.0.0"},
+                        },
+                    })
+            return await call_next(request)
+
+    app.add_middleware(_InitializePassthrough)
+
     async def _mcp_handler(request: Request) -> dict:  # type: ignore[return]
         body = await request.body()
         try:
@@ -144,17 +171,6 @@ def run_mcp_server_with_oauth(
         method = msg.get("method")
         msg_id = msg.get("id")
         params = msg.get("params") or {}
-
-        if method == "initialize":
-            return {
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": app_name, "version": "1.0.0"},
-                },
-            }
 
         if method == "tools/list":
             principal = getattr(request.state, "authsec_principal", None)
