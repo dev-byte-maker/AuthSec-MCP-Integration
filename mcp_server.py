@@ -113,8 +113,9 @@ def run_mcp_server_with_oauth(
         cfg.tool_scopes = {t.tool_name: t.scopes for t in tools}
     if not cfg.supported_scopes:
         cfg.supported_scopes = _CANONICAL_SCOPES
-    if cfg.policy_mode == PolicyMode.UNSET:
-        cfg.policy_mode = PolicyMode.REMOTE_WITH_LOCAL_FALLBACK
+    # REMOTE_WITH_LOCAL_FALLBACK: use AuthSec scope matrix when reachable,
+    # fall back to tool_scopes dict when not — server never crashes on startup.
+    cfg.policy_mode = PolicyMode.REMOTE_WITH_LOCAL_FALLBACK
     if cfg.validation_mode == ValidationMode.UNSET:
         cfg.validation_mode = ValidationMode.JWT_AND_INTROSPECT
 
@@ -239,9 +240,14 @@ def run_mcp_server_with_oauth(
     # Manually register the startup hook that mount_mcp normally wires via
     # on_event.  Without this: scope matrix is never fetched from AuthSec and
     # the tool manifest is never published.
+    # Non-fatal: if AuthSec is unreachable at boot the server still starts;
+    # scope enforcement falls back to the local tool_scopes map.
     @app.on_event("startup")
     async def _authsec_startup() -> None:
-        await rt.startup()
+        try:
+            await rt.startup()
+        except Exception as exc:
+            print(f"[AuthSec] startup warning (non-fatal): {exc}")
 
     print(f"\n{'─'*55}")
     print(f"  {app_name}")
