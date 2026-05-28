@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from authsec_sdk import (
     Config,
+    ManifestTool,
     PolicyMode,
     ValidationMode,
     from_env,
@@ -117,6 +118,19 @@ def run_mcp_server_with_oauth(
     if cfg.validation_mode == ValidationMode.UNSET:
         cfg.validation_mode = ValidationMode.JWT_AND_INTROSPECT
 
+    # Publish tool manifest to AuthSec on startup so the admin UI shows
+    # all tools and their suggested scopes, and the scope matrix is populated.
+    cfg.publish_manifest = True
+    cfg.tool_inventory_provider = lambda: [
+        ManifestTool(
+            name=t.tool_name,
+            description=t.description,
+            input_schema=t.input_schema,
+            suggested_scopes=t.scopes,
+        )
+        for t in tools
+    ]
+
     tool_index: dict[str, _ProtectedTool] = {t.tool_name: t for t in tools}
     tool_schemas: list[dict] = [
         {
@@ -213,11 +227,21 @@ def run_mcp_server_with_oauth(
             "error": {"code": -32601, "message": f"Method not found: {method}"},
         }
 
+    # _RouteProxy shares the routes list but lacks add_api_route so mount_mcp
+    # uses plain Starlette Route (avoids FastAPI annotation-resolution bug).
+    # It also lacks on_event, so we register the startup hook manually below.
     class _RouteProxy:
         def __init__(self, real: FastAPI) -> None:
             self.routes = real.routes
 
-    mount_mcp(_RouteProxy(app), "/mcp", _mcp_handler, cfg)
+    rt = mount_mcp(_RouteProxy(app), "/mcp", _mcp_handler, cfg)
+
+    # Manually register the startup hook that mount_mcp normally wires via
+    # on_event.  Without this: scope matrix is never fetched from AuthSec and
+    # the tool manifest is never published.
+    @app.on_event("startup")
+    async def _authsec_startup() -> None:
+        await rt.startup()
 
     print(f"\n{'─'*55}")
     print(f"  {app_name}")
